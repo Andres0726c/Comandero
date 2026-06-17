@@ -1,0 +1,15 @@
+{
+  "name": "comandero",
+  "version": "1.0.0",
+  "description": "Comandero - Sistema de gestión de ventas",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "db:setup": "cd backend && npx prisma generate && npx prisma migrate dev --name init && npx ts-node prisma/seed.ts",
+    "start": "cd backend && npm run start:prod"
+  }
+}
