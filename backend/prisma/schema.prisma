@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String     @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String     @unique
   password  String
-  role      String   @default("VENDEDOR")
-  active    Boolean  @default(true)
+  role      String     @default("VENDEDOR")
+  active    Boolean    @default(true)
   orders    Order[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  purchases Purchase[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Product {
@@ -74,4 +75,42 @@ model Payment {
   amount    Float
   method    String   @default("EFECTIVO")
   createdAt DateTime @default(now())
+}
+
+model RawMaterial {
+  id             String         @id @default(uuid())
+  name           String
+  category       String
+  unit           String
+  referencePrice Float?
+  notes          String?
+  active         Boolean        @default(true)
+  purchaseItems  PurchaseItem[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Purchase {
+  id        String         @id @default(uuid())
+  date      DateTime       @default(now())
+  user      User           @relation(fields: [userId], references: [id])
+  userId    String
+  total     Float          @default(0)
+  notes     String?
+  items     PurchaseItem[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model PurchaseItem {
+  id            String       @id @default(uuid())
+  purchase      Purchase     @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  purchaseId    String
+  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id])
+  rawMaterialId String?
+  name          String
+  quantity      Float
+  unit          String
+  unitPrice     Float
+  total         Float
 }

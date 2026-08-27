@@ -43,4 +43,19 @@ export class ReportsController {
   ) {
     return this.reportsService.getSalesByUser(startDate, endDate);
   }
+
+  @Get('profits')
+  getProfits(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.reportsService.getProfits(startDate, endDate);
+  }
+
+  @Get('profits-timeline')
+  getProfitsByPeriod(
+    @Query('groupBy') groupBy?: 'day' | 'week' | 'month',
+  ) {
+    return this.reportsService.getProfitsByPeriod(groupBy);
+  }
 }

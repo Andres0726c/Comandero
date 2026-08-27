@@ -245,6 +245,104 @@ export class ReportsService {
     );
   }
 
+  async getProfits(startDate?: string, endDate?: string) {
+    const where: any = { status: { not: 'CANCELADO' } };
+    const purchaseWhere: any = {};
+
+    if (startDate || endDate) {
+      where.createdAt = {};
+      purchaseWhere.date = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+        purchaseWhere.date.gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+        purchaseWhere.date.lte = end;
+      }
+    }
+
+    const [orders, purchases] = await Promise.all([
+      this.prisma.order.findMany({ where, select: { total: true } }),
+      this.prisma.purchase.findMany({ where: purchaseWhere, select: { total: true } }),
+    ]);
+
+    const totalSales = orders.reduce((sum, o) => sum + o.total, 0);
+    const totalPurchases = purchases.reduce((sum, p) => sum + p.total, 0);
+    const grossProfit = totalSales - totalPurchases;
+    const profitMargin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
+
+    return {
+      period: { startDate, endDate },
+      totalSales,
+      totalPurchases,
+      grossProfit,
+      profitMargin: Math.round(profitMargin * 100) / 100,
+    };
+  }
+
+  async getProfitsByPeriod(groupBy: 'day' | 'week' | 'month' = 'day') {
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    since.setHours(0, 0, 0, 0);
+
+    const [orders, purchases] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          status: { not: 'CANCELADO' },
+          createdAt: { gte: since },
+        },
+        select: { total: true, createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.purchase.findMany({
+        where: { date: { gte: since } },
+        select: { total: true, date: true },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    const getPeriodKey = (date: Date): string => {
+      if (groupBy === 'month') {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      }
+      if (groupBy === 'week') {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - d.getDay());
+        return d.toISOString().split('T')[0];
+      }
+      return date.toISOString().split('T')[0];
+    };
+
+    const periodMap = new Map<string, { sales: number; purchases: number }>();
+
+    for (const order of orders) {
+      const key = getPeriodKey(order.createdAt);
+      const existing = periodMap.get(key) ?? { sales: 0, purchases: 0 };
+      existing.sales += order.total;
+      periodMap.set(key, existing);
+    }
+
+    for (const purchase of purchases) {
+      const key = getPeriodKey(purchase.date);
+      const existing = periodMap.get(key) ?? { sales: 0, purchases: 0 };
+      existing.purchases += purchase.total;
+      periodMap.set(key, existing);
+    }
+
+    return Array.from(periodMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        sales: data.sales,
+        purchases: data.purchases,
+        profit: data.sales - data.purchases,
+      }));
+  }
+
   async getSalesByUser(startDate?: string, endDate?: string) {
     const where: any = {};
     if (startDate || endDate) {
