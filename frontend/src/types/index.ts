@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'staff';
+  role: 'ADMIN' | 'VENDEDOR' | 'COCINA';
 }
 
 export interface AuthResponse {
@@ -16,8 +16,8 @@ export interface Product {
   description?: string;
   price: number;
   category: string;
+  stock: number;
   active: boolean;
-  imageUrl?: string;
 }
 
 export interface Customer {

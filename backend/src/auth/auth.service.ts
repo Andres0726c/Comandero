@@ -26,7 +26,7 @@ export class AuthService {
       throw new UnauthorizedException('Usuario desactivado');
     }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       token: this.jwtService.sign(payload),
       user: {
@@ -45,7 +45,7 @@ export class AuthService {
       password: dto.password,
     });
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       token: this.jwtService.sign(payload),
       user: {

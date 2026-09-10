@@ -114,35 +114,52 @@ export default function NewOrderPage() {
 
       <div className="bg-white rounded-2xl shadow-sm p-4">
         <h2 className="font-semibold text-gray-800 mb-3">Productos</h2>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
           {products.filter((p) => p.active).map((product) => {
             const itemInOrder = items.find((i) => i.productId === product.id);
+            const available = product.stock;
+            const outOfStock = available === 0;
+            const atMax = itemInOrder ? itemInOrder.quantity >= available : false;
             return (
               <div
                 key={product.id}
-                className="border border-gray-100 rounded-xl p-3 flex flex-col"
+                className={`border rounded-xl p-3 flex flex-col ${
+                  outOfStock ? 'border-gray-100 bg-gray-50 opacity-50' : 'border-gray-100'
+                }`}
               >
                 <p className="text-sm font-medium text-gray-800 leading-tight">{product.name}</p>
-                <p className="text-orange-600 text-sm font-semibold mt-1">{formatCurrency(product.price)}</p>
-                {itemInOrder ? (
-                  <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-orange-600 text-sm font-semibold">{formatCurrency(product.price)}</p>
+                  {!outOfStock && (
+                    <span className="text-xs text-gray-400">{available} disp.</span>
+                  )}
+                  {outOfStock && (
+                    <span className="text-xs text-red-400 font-medium">Agotado</span>
+                  )}
+                </div>
+                {!outOfStock && (
+                  itemInOrder ? (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => updateQty(product.id, itemInOrder.quantity - 1)}
+                        className="w-7 h-7 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center font-bold"
+                      >−</button>
+                      <span className="flex-1 text-center text-sm font-semibold">{itemInOrder.quantity}</span>
+                      <button
+                        onClick={() => !atMax && updateQty(product.id, itemInOrder.quantity + 1)}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold ${
+                          atMax ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-orange-500 text-white'
+                        }`}
+                      >+</button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => updateQty(product.id, itemInOrder.quantity - 1)}
-                      className="w-7 h-7 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center font-bold"
-                    >-</button>
-                    <span className="flex-1 text-center text-sm font-semibold">{itemInOrder.quantity}</span>
-                    <button
-                      onClick={() => updateQty(product.id, itemInOrder.quantity + 1)}
-                      className="w-7 h-7 bg-orange-500 text-white rounded-lg flex items-center justify-center font-bold"
-                    >+</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => addItem(product)}
-                    className="mt-2 w-full bg-orange-50 text-orange-600 rounded-lg py-1.5 text-xs font-medium"
-                  >
-                    Agregar
-                  </button>
+                      onClick={() => addItem(product)}
+                      className="mt-2 w-full bg-orange-50 text-orange-600 rounded-lg py-1.5 text-xs font-medium hover:bg-orange-100 transition-colors"
+                    >
+                      Agregar
+                    </button>
+                  )
                 )}
               </div>
             );

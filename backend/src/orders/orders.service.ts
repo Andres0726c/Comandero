@@ -117,25 +117,30 @@ export class OrdersService {
       };
     });
 
-    return this.prisma.order.create({
-      data: {
-        userId,
-        customerId: customerId || null,
-        notes: dto.notes,
-        total,
-        items: {
-          create: itemsData,
+    const [order] = await this.prisma.$transaction([
+      this.prisma.order.create({
+        data: {
+          userId,
+          customerId: customerId || null,
+          notes: dto.notes,
+          total,
+          items: { create: itemsData },
         },
-      },
-      include: {
-        customer: true,
-        user: {
-          select: { id: true, name: true, email: true },
+        include: {
+          customer: true,
+          user: { select: { id: true, name: true, email: true } },
+          items: { include: { product: true } },
+          payments: true,
         },
-        items: { include: { product: true } },
-        payments: true,
-      },
-    });
+      }),
+      ...dto.items.map((item) =>
+        this.prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { decrement: item.quantity } },
+        }),
+      ),
+    ]);
+    return order;
   }
 
   async update(id: string, dto: UpdateOrderDto) {

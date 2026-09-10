@@ -11,13 +11,17 @@ interface NavItem {
 const MAIN_NAV: NavItem[] = [
   { to: '/', icon: '🏠', label: 'Inicio' },
   { to: '/pedidos', icon: '📋', label: 'Pedidos' },
-  { to: '/compras', icon: '🛒', label: 'Compras' },
-  { to: '/ganancias', icon: '📈', label: 'Ganancias' },
+  { to: '/clientes', icon: '👥', label: 'Clientes' },
 ];
 
-const ADMIN_NAV: NavItem[] = [
+const ADMIN_MAIN_NAV: NavItem[] = [
+  { to: '/compras', icon: '🛒', label: 'Compras' },
+  { to: '/ganancias', icon: '📈', label: 'Ganancias' },
+  { to: '/inventario', icon: '📦', label: 'Inventario' },
+];
+
+const ADMIN_SECONDARY_NAV: NavItem[] = [
   { to: '/productos', icon: '🍖', label: 'Productos' },
-  { to: '/clientes', icon: '👥', label: 'Clientes' },
   { to: '/materia-prima', icon: '🥬', label: 'Materia Prima' },
   { to: '/reportes', icon: '📊', label: 'Reportes' },
 ];
@@ -26,10 +30,8 @@ const BOTTOM_NAV: NavItem[] = [
   { to: '/', icon: '🏠', label: 'Inicio' },
   { to: '/pedidos', icon: '📋', label: 'Pedidos' },
   { to: '/pedidos/nuevo', icon: '➕', label: 'Nuevo' },
-  { to: '/compras', icon: '🛒', label: 'Compras' },
+  { to: '/clientes', icon: '👥', label: 'Clientes' },
 ];
-
-const MORE_ITEMS: NavItem[] = [...ADMIN_NAV, { to: '/ganancias', icon: '📈', label: 'Ganancias' }];
 
 function SidebarNavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   return (
@@ -55,6 +57,7 @@ export default function Layout() {
   const [showDrawer, setShowDrawer] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const isAdmin = user?.role === 'ADMIN';
 
   const handleLogout = () => {
     logout();
@@ -93,11 +96,18 @@ export default function Layout() {
           {MAIN_NAV.map((item) => (
             <SidebarNavLink key={item.to} item={item} />
           ))}
-
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 mb-1 mt-4">Administración</p>
-          {ADMIN_NAV.map((item) => (
+          {isAdmin && ADMIN_MAIN_NAV.map((item) => (
             <SidebarNavLink key={item.to} item={item} />
           ))}
+
+          {isAdmin && (
+            <>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 mb-1 mt-4">Administración</p>
+              {ADMIN_SECONDARY_NAV.map((item) => (
+                <SidebarNavLink key={item.to} item={item} />
+              ))}
+            </>
+          )}
         </nav>
 
         {/* User + logout */}
@@ -200,8 +210,8 @@ export default function Layout() {
                 <div>
                   <p className="text-white font-bold text-base">{user?.name ?? 'Usuario'}</p>
                   <p className="text-orange-100 text-xs mt-0.5">{user?.email}</p>
-                  <span className="text-xs bg-orange-400 text-white px-2 py-0.5 rounded-full mt-1 inline-block capitalize">
-                    {user?.role ?? 'staff'}
+                  <span className="text-xs bg-orange-400 text-white px-2 py-0.5 rounded-full mt-1 inline-block">
+                    {user?.role === 'ADMIN' ? 'Administrador' : 'Vendedor'}
                   </span>
                 </div>
                 <button onClick={() => setShowDrawer(false)} className="text-orange-200 text-2xl leading-none">×</button>
@@ -210,42 +220,27 @@ export default function Layout() {
             </div>
 
             <div className="flex-1 overflow-y-auto py-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">Secciones</p>
-              {MORE_ITEMS.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  onClick={() => setShowDrawer(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-5 py-3.5 text-sm font-medium ${
-                      isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
-                    }`
-                  }
-                >
-                  <span className="text-lg">{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              ))}
-
-              <div className="mx-5 my-3 border-t border-gray-100" />
-
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">Navegación</p>
-              {BOTTOM_NAV.filter((n) => n.to !== '/pedidos/nuevo').map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  onClick={() => setShowDrawer(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-5 py-3.5 text-sm font-medium ${
-                      isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
-                    }`
-                  }
-                >
-                  <span className="text-lg">{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              ))}
+              {isAdmin && (
+                <>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">Gestión</p>
+                  {[...ADMIN_MAIN_NAV, ...ADMIN_SECONDARY_NAV].map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setShowDrawer(false)}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-5 py-3.5 text-sm font-medium ${
+                          isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
+                        }`
+                      }
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      {item.label}
+                    </NavLink>
+                  ))}
+                  <div className="mx-5 my-3 border-t border-gray-100" />
+                </>
+              )}
             </div>
 
             <div className="border-t border-gray-100 p-5">

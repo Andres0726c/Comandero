@@ -10,4 +10,6 @@ export const productsService = {
   update: (id: string, data: Partial<Product>) =>
     api.patch<Product>(`/products/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/products/${id}`),
+  updateStock: (id: string, stock: number) =>
+    api.patch<Product>(`/products/${id}/stock`, { stock }).then((r) => r.data),
 };

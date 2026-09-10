@@ -42,4 +42,12 @@ export class ProductsService {
       data: { active: false },
     });
   }
+
+  async updateStock(id: string, stock: number) {
+    await this.findById(id);
+    return this.prisma.product.update({
+      where: { id },
+      data: { stock: Math.max(0, stock) },
+    });
+  }
 }

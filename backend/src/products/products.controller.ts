@@ -44,6 +44,13 @@ export class ProductsController {
     return this.productsService.update(id, dto);
   }
 
+  @Patch(':id/stock')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  updateStock(@Param('id') id: string, @Body() body: { stock: number }) {
+    return this.productsService.updateStock(id, body.stock);
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
