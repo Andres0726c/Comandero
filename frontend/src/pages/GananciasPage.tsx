@@ -4,6 +4,20 @@ import { reportsService } from '../services/reports.service';
 import { formatCurrency, formatDate } from '../utils/format';
 import { ProfitReport, ProfitTimeline } from '../types';
 
+const GASTOS_FIJOS_POR_DOMINGO = 42750;
+
+function countSundays(startDate: string, endDate: string): number {
+  const start = new Date(startDate + 'T12:00:00');
+  const end = new Date(endDate + 'T12:00:00');
+  let count = 0;
+  const d = new Date(start);
+  while (d <= end) {
+    if (d.getDay() === 0) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 type Period = 'hoy' | 'semana' | 'mes' | 'custom';
 
 interface DateRange {
@@ -60,6 +74,10 @@ export default function GananciasPage() {
   }, [period, customRange.startDate, customRange.endDate]); // effectiveRange derived from these
 
   const isProfit = report ? report.grossProfit >= 0 : true;
+  const gastosFijos = effectiveRange
+    ? countSundays(effectiveRange.startDate, effectiveRange.endDate) * GASTOS_FIJOS_POR_DOMINGO
+    : 0;
+  const gananciaNeta = report ? report.grossProfit - gastosFijos : 0;
 
   return (
     <div className="p-4 space-y-4 pb-8">
@@ -170,9 +188,36 @@ export default function GananciasPage() {
               </p>
             </div>
 
+            {/* Gastos fijos */}
+            {gastosFijos > 0 && (
+              <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 col-span-2">
+                <p className="text-orange-600 text-xs font-medium">🔥 Gastos Fijos ({countSundays(report.period.startDate, report.period.endDate)} domingo{countSundays(report.period.startDate, report.period.endDate) !== 1 ? 's' : ''})</p>
+                <p className="text-lg font-bold text-gray-900 mt-1">
+                  − {formatCurrency(gastosFijos)}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">Energía + Gas + Carbón = $42.750/domingo</p>
+              </div>
+            )}
+
+            {/* Ganancia neta */}
+            <div
+              className={`rounded-2xl p-4 col-span-2 ${
+                gananciaNeta >= 0
+                  ? 'bg-green-50 border border-green-200'
+                  : 'bg-red-50 border border-red-200'
+              }`}
+            >
+              <p className={`text-xs font-semibold ${gananciaNeta >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                ✅ Ganancia Neta (después de gastos fijos)
+              </p>
+              <p className={`text-2xl font-bold mt-1 ${gananciaNeta >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                {gananciaNeta < 0 ? '−' : ''}{formatCurrency(Math.abs(gananciaNeta))}
+              </p>
+            </div>
+
             {/* Margen */}
             <div className="bg-purple-50 border border-purple-100 rounded-2xl p-4 col-span-2">
-              <p className="text-purple-600 text-xs font-medium">% Margen de ganancia</p>
+              <p className="text-purple-600 text-xs font-medium">% Margen de ganancia bruta</p>
               <p
                 className={`text-2xl font-bold mt-1 ${
                   report.profitMargin >= 0 ? 'text-gray-900' : 'text-red-600'

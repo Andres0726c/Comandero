@@ -5,6 +5,8 @@ import { ordersService } from '../services/orders.service';
 import { formatCurrency } from '../utils/format';
 import { Order } from '../types';
 
+const GASTOS_FIJOS_DOMINGO = 42750;
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -21,6 +23,7 @@ export default function DashboardPage() {
   const todayRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const pending = orders.filter((o) => o.status === 'pendiente').length;
   const inProcess = orders.filter((o) => o.status === 'en_proceso').length;
+  const gananciaEstimada = todayRevenue - GASTOS_FIJOS_DOMINGO;
 
   return (
     <div className="p-4 space-y-5">
@@ -51,6 +54,30 @@ export default function DashboardPage() {
               <p className="text-xl font-bold text-gray-900 mt-1">{inProcess}</p>
             </div>
           </div>
+
+          {todayRevenue > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+              <h2 className="font-semibold text-gray-800">Cierre de jornada</h2>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Ventas del día</span>
+                  <span className="font-semibold text-gray-800">{formatCurrency(todayRevenue)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Gastos fijos</span>
+                  <span className="font-semibold text-red-500">− {formatCurrency(GASTOS_FIJOS_DOMINGO)}</span>
+                </div>
+                <div className="h-px bg-gray-100" />
+                <div className="flex justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Ganancia estimada</span>
+                  <span className={`font-bold text-lg ${gananciaEstimada >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {gananciaEstimada < 0 ? '−' : ''}{formatCurrency(Math.abs(gananciaEstimada))}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">Sin descontar costo de insumos. Ver Ganancias para el detalle completo.</p>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <h2 className="font-semibold text-gray-800 mb-3">Accesos rápidos</h2>
