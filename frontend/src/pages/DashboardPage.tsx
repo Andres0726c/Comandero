@@ -36,7 +36,7 @@ export default function DashboardPage() {
         <div className="text-center py-10 text-gray-400">Cargando...</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="bg-orange-500 text-white rounded-2xl p-4">
               <p className="text-orange-100 text-xs font-medium">Ventas hoy</p>
               <p className="text-xl font-bold mt-1">{formatCurrency(todayRevenue)}</p>
@@ -81,7 +81,7 @@ export default function DashboardPage() {
 
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <h2 className="font-semibold text-gray-800 mb-3">Accesos rápidos</h2>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { to: '/pedidos/nuevo', icon: '➕', label: 'Nuevo pedido' },
                 { to: '/pedidos', icon: '📋', label: 'Pedidos' },

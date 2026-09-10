@@ -8,6 +8,20 @@ interface NavItem {
   label: string;
 }
 
+const MAIN_NAV: NavItem[] = [
+  { to: '/', icon: '🏠', label: 'Inicio' },
+  { to: '/pedidos', icon: '📋', label: 'Pedidos' },
+  { to: '/compras', icon: '🛒', label: 'Compras' },
+  { to: '/ganancias', icon: '📈', label: 'Ganancias' },
+];
+
+const ADMIN_NAV: NavItem[] = [
+  { to: '/productos', icon: '🍖', label: 'Productos' },
+  { to: '/clientes', icon: '👥', label: 'Clientes' },
+  { to: '/materia-prima', icon: '🥬', label: 'Materia Prima' },
+  { to: '/reportes', icon: '📊', label: 'Reportes' },
+];
+
 const BOTTOM_NAV: NavItem[] = [
   { to: '/', icon: '🏠', label: 'Inicio' },
   { to: '/pedidos', icon: '📋', label: 'Pedidos' },
@@ -15,13 +29,27 @@ const BOTTOM_NAV: NavItem[] = [
   { to: '/compras', icon: '🛒', label: 'Compras' },
 ];
 
-const MORE_ITEMS: NavItem[] = [
-  { to: '/productos', icon: '🍖', label: 'Productos' },
-  { to: '/clientes', icon: '👥', label: 'Clientes' },
-  { to: '/materia-prima', icon: '🥬', label: 'Materia Prima' },
-  { to: '/ganancias', icon: '📈', label: 'Ganancias' },
-  { to: '/reportes', icon: '📊', label: 'Reportes' },
-];
+const MORE_ITEMS: NavItem[] = [...ADMIN_NAV, { to: '/ganancias', icon: '📈', label: 'Ganancias' }];
+
+function SidebarNavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.to === '/'}
+      onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+          isActive
+            ? 'bg-orange-50 text-orange-600'
+            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+        }`
+      }
+    >
+      <span className="text-lg leading-none">{item.icon}</span>
+      {item.label}
+    </NavLink>
+  );
+}
 
 export default function Layout() {
   const [showDrawer, setShowDrawer] = useState(false);
@@ -34,31 +62,91 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative">
-      {/* Top bar */}
-      <header className="bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🔥</span>
-          <span className="font-bold text-orange-600 text-sm">Donde Kuyu Grill</span>
+    <div className="min-h-screen bg-gray-50 lg:flex">
+
+      {/* ── DESKTOP SIDEBAR ── */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-white border-r border-gray-100 z-20">
+        {/* Brand */}
+        <div className="px-5 py-5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🔥</span>
+            <div>
+              <p className="font-bold text-orange-600 text-sm leading-tight">Donde Kuyu Grill</p>
+              <p className="text-gray-400 text-xs">Gestión de ventas</p>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={() => setShowDrawer(true)}
-          className="flex items-center gap-1.5 text-sm text-gray-600"
-        >
-          <span className="w-7 h-7 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold">
+
+        {/* New order CTA */}
+        <div className="px-4 py-4">
+          <Link
+            to="/pedidos/nuevo"
+            className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors shadow-sm shadow-orange-200"
+          >
+            <span>➕</span> Nuevo pedido
+          </Link>
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 space-y-0.5">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 mb-1 mt-1">Principal</p>
+          {MAIN_NAV.map((item) => (
+            <SidebarNavLink key={item.to} item={item} />
+          ))}
+
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-4 mb-1 mt-4">Administración</p>
+          {ADMIN_NAV.map((item) => (
+            <SidebarNavLink key={item.to} item={item} />
+          ))}
+        </nav>
+
+        {/* User + logout */}
+        <div className="border-t border-gray-100 px-4 py-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
+              {user?.name?.charAt(0).toUpperCase() ?? 'U'}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-800 truncate">{user?.name}</p>
+              <p className="text-xs text-gray-400 truncate">{user?.role}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-red-500 text-sm font-medium hover:text-red-600 transition-colors"
+          >
+            <span>🚪</span> Cerrar sesión
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MAIN CONTENT (offset by sidebar on desktop) ── */}
+      <div className="flex flex-col flex-1 min-h-screen lg:pl-64">
+
+        {/* Mobile top bar */}
+        <header className="lg:hidden bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center sticky top-0 z-30">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🔥</span>
+            <span className="font-bold text-orange-600 text-sm">Donde Kuyu Grill</span>
+          </div>
+          <button
+            onClick={() => setShowDrawer(true)}
+            className="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-sm font-bold"
+          >
             {user?.name?.charAt(0).toUpperCase() ?? 'U'}
-          </span>
-          <span className="text-xs hidden sm:block">{user?.name}</span>
-        </button>
-      </header>
+          </button>
+        </header>
 
-      {/* Page content */}
-      <main className="flex-1 overflow-y-auto pb-24">
-        <Outlet />
-      </main>
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto pb-24 lg:pb-0">
+          <div className="max-w-4xl mx-auto lg:py-6 lg:px-6">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
-      {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 z-30 safe-bottom">
+      {/* ── MOBILE BOTTOM NAV ── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-30">
         <div className="flex items-center">
           {BOTTOM_NAV.map((item) => {
             const isNew = item.to === '/pedidos/nuevo';
@@ -92,8 +180,6 @@ export default function Layout() {
               </NavLink>
             );
           })}
-
-          {/* Más button */}
           <button
             onClick={() => setShowDrawer(true)}
             className="flex-1 flex flex-col items-center py-2 gap-0.5 text-gray-400"
@@ -104,17 +190,11 @@ export default function Layout() {
         </div>
       </nav>
 
-      {/* Side drawer / More menu */}
+      {/* ── MOBILE DRAWER ── */}
       {showDrawer && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/40 z-40"
-            onClick={() => setShowDrawer(false)}
-          />
-          {/* Drawer */}
-          <div className="fixed right-0 top-0 bottom-0 w-72 bg-white z-50 shadow-2xl flex flex-col">
-            {/* Drawer header */}
+          <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setShowDrawer(false)} />
+          <div className="fixed right-0 top-0 bottom-0 w-72 bg-white z-50 shadow-2xl flex flex-col lg:hidden">
             <div className="bg-orange-500 px-5 py-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -124,21 +204,13 @@ export default function Layout() {
                     {user?.role ?? 'staff'}
                   </span>
                 </div>
-                <button
-                  onClick={() => setShowDrawer(false)}
-                  className="text-orange-200 text-2xl leading-none"
-                >
-                  ×
-                </button>
+                <button onClick={() => setShowDrawer(false)} className="text-orange-200 text-2xl leading-none">×</button>
               </div>
               <div className="text-orange-100 text-xs">🔥 Donde Kuyu Grill</div>
             </div>
 
-            {/* More navigation items */}
             <div className="flex-1 overflow-y-auto py-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">
-                Secciones
-              </p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">Secciones</p>
               {MORE_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
@@ -146,9 +218,7 @@ export default function Layout() {
                   onClick={() => setShowDrawer(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-5 py-3.5 text-sm font-medium ${
-                      isActive
-                        ? 'bg-orange-50 text-orange-600'
-                        : 'text-gray-700 hover:bg-gray-50'
+                      isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
                     }`
                   }
                 >
@@ -157,12 +227,9 @@ export default function Layout() {
                 </NavLink>
               ))}
 
-              {/* Divider */}
               <div className="mx-5 my-3 border-t border-gray-100" />
 
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">
-                Navegación principal
-              </p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-5 mb-2">Navegación</p>
               {BOTTOM_NAV.filter((n) => n.to !== '/pedidos/nuevo').map((item) => (
                 <NavLink
                   key={item.to}
@@ -171,9 +238,7 @@ export default function Layout() {
                   onClick={() => setShowDrawer(false)}
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-5 py-3.5 text-sm font-medium ${
-                      isActive
-                        ? 'bg-orange-50 text-orange-600'
-                        : 'text-gray-700 hover:bg-gray-50'
+                      isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-50'
                     }`
                   }
                 >
@@ -183,12 +248,8 @@ export default function Layout() {
               ))}
             </div>
 
-            {/* Logout */}
             <div className="border-t border-gray-100 p-5">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center gap-3 text-red-500 text-sm font-medium py-2"
-              >
+              <button onClick={handleLogout} className="w-full flex items-center gap-3 text-red-500 text-sm font-medium py-2">
                 <span className="text-lg">🚪</span>
                 Cerrar sesión
               </button>
