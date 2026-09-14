@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -25,6 +27,8 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR', 'COCINA')
   findAll(
     @Query('status') status?: string,
     @Query('startDate') startDate?: string,
@@ -34,26 +38,36 @@ export class OrdersController {
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR', 'COCINA')
   findOne(@Param('id') id: string) {
     return this.ordersService.findById(id);
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR')
   create(@Body() dto: CreateOrderDto, @CurrentUser() user: any) {
     return this.ordersService.create(dto, user.id);
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR', 'COCINA')
   update(@Param('id') id: string, @Body() dto: UpdateOrderDto) {
     return this.ordersService.update(id, dto);
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
   remove(@Param('id') id: string) {
     return this.ordersService.delete(id);
   }
 
   @Post(':id/payments')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR')
   addPayment(@Param('id') id: string, @Body() dto: CreatePaymentDto) {
     return this.ordersService.addPayment(id, dto);
   }
