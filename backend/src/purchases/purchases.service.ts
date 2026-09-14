@@ -55,6 +55,7 @@ export class PurchasesService {
       data: {
         date: dto.date ? new Date(dto.date) : new Date(),
         notes: dto.notes,
+        imageUrl: dto.imageUrl,
         userId,
         total,
         items: {

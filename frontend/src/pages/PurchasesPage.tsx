@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { purchasesService } from '../services/purchases.service';
 import { rawMaterialsService } from '../services/raw-materials.service';
+import { invoiceService } from '../services/invoice.service';
 import { formatCurrency, formatDate, todayISO } from '../utils/format';
 import { Purchase, RawMaterial } from '../types';
 
@@ -16,32 +17,31 @@ interface DraftItem {
 
 let keyCounter = 0;
 const newKey = () => String(++keyCounter);
-
-const emptyItem = (): DraftItem => ({
-  key: newKey(),
-  name: '',
-  quantity: '',
-  unit: '',
-  unitPrice: '',
-});
+const emptyItem = (): DraftItem => ({ key: newKey(), name: '', quantity: '', unit: '', unitPrice: '' });
 
 export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [viewImage, setViewImage] = useState<string | null>(null);
 
-  // Raw materials for autocomplete
   const [rawMaterials, setRawMaterials] = useState<RawMaterial[]>([]);
   const [searchTerms, setSearchTerms] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<Record<string, RawMaterial[]>>({});
 
-  // Form state
   const [date, setDate] = useState(todayISO());
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // Invoice AI state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
+  const [invoiceImageUrl, setInvoiceImageUrl] = useState<string>('');
+  const [analyzing, setAnalyzing] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -58,9 +58,7 @@ export default function PurchasesPage() {
   }, [load]);
 
   const runningTotal = items.reduce((sum, item) => {
-    const qty = parseFloat(item.quantity) || 0;
-    const price = parseFloat(item.unitPrice) || 0;
-    return sum + qty * price;
+    return sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0);
   }, 0);
 
   const handleItemChange = (key: string, field: keyof DraftItem, value: string) => {
@@ -70,12 +68,11 @@ export default function PurchasesPage() {
   const handleSearchChange = (key: string, value: string) => {
     setSearchTerms((prev) => ({ ...prev, [key]: value }));
     handleItemChange(key, 'name', value);
-
     if (value.length >= 1) {
-      const filtered = rawMaterials.filter((m) =>
-        m.name.toLowerCase().includes(value.toLowerCase()),
-      );
-      setSuggestions((prev) => ({ ...prev, [key]: filtered.slice(0, 6) }));
+      setSuggestions((prev) => ({
+        ...prev,
+        [key]: rawMaterials.filter((m) => m.name.toLowerCase().includes(value.toLowerCase())).slice(0, 6),
+      }));
     } else {
       setSuggestions((prev) => ({ ...prev, [key]: [] }));
     }
@@ -85,13 +82,7 @@ export default function PurchasesPage() {
     setItems((prev) =>
       prev.map((i) =>
         i.key === key
-          ? {
-              ...i,
-              rawMaterialId: m.id,
-              name: m.name,
-              unit: m.unit,
-              unitPrice: m.referencePrice ? String(m.referencePrice) : i.unitPrice,
-            }
+          ? { ...i, rawMaterialId: m.id, name: m.name, unit: m.unit, unitPrice: m.referencePrice ? String(m.referencePrice) : i.unitPrice }
           : i,
       ),
     );
@@ -100,24 +91,14 @@ export default function PurchasesPage() {
   };
 
   const addItem = () => {
-    const k = newKey();
     setItems((prev) => [...prev, emptyItem()]);
-    setSearchTerms((prev) => ({ ...prev }));
   };
 
   const removeItem = (key: string) => {
     if (items.length === 1) return;
     setItems((prev) => prev.filter((i) => i.key !== key));
-    setSearchTerms((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-    setSuggestions((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+    setSearchTerms((prev) => { const n = { ...prev }; delete n[key]; return n; });
+    setSuggestions((prev) => { const n = { ...prev }; delete n[key]; return n; });
   };
 
   const resetForm = () => {
@@ -126,7 +107,60 @@ export default function PurchasesPage() {
     setItems([emptyItem()]);
     setSearchTerms({});
     setSuggestions({});
+    setInvoiceFile(null);
+    setInvoicePreview(null);
+    setInvoiceImageUrl('');
   };
+
+  // ── Invoice AI ──────────────────────────────────────────────
+  const handleImageCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInvoiceFile(file);
+    setInvoicePreview(URL.createObjectURL(file));
+    setInvoiceImageUrl('');
+  };
+
+  const handleAnalyze = async () => {
+    if (!invoiceFile) return;
+    setAnalyzing(true);
+    try {
+      const result = await invoiceService.analyze(invoiceFile);
+      const { data, imageUrl } = result;
+
+      if (imageUrl) setInvoiceImageUrl(imageUrl);
+
+      // Pre-fill date
+      if (data.date) setDate(data.date);
+
+      // Pre-fill notes with supplier
+      if (data.supplier) setNotes((n) => n || `Proveedor: ${data.supplier}`);
+
+      // Pre-fill items
+      if (data.items && data.items.length > 0) {
+        const newItems: DraftItem[] = data.items.map((item) => ({
+          key: newKey(),
+          name: item.name || '',
+          quantity: String(item.quantity || 1),
+          unit: item.unit || 'unidad',
+          unitPrice: String(item.unitPrice || 0),
+        }));
+        setItems(newItems);
+        const terms: Record<string, string> = {};
+        newItems.forEach((i) => { terms[i.key] = i.name; });
+        setSearchTerms(terms);
+        setSuggestions({});
+        toast.success(`IA extrajo ${newItems.length} ítem${newItems.length !== 1 ? 's' : ''} de la factura`);
+      } else {
+        toast('IA no encontró ítems — completa el formulario manualmente', { icon: '⚠️' });
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Error al analizar la factura');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+  // ────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
     const validItems = items.filter(
@@ -141,6 +175,7 @@ export default function PurchasesPage() {
       await purchasesService.create({
         date,
         notes: notes.trim() || undefined,
+        imageUrl: invoiceImageUrl || undefined,
         items: validItems.map((i) => ({
           rawMaterialId: i.rawMaterialId,
           name: i.name.trim(),
@@ -148,7 +183,7 @@ export default function PurchasesPage() {
           unit: i.unit.trim() || 'unidad',
           unitPrice: parseFloat(i.unitPrice),
         })),
-      });
+      } as any);
       toast.success('Compra registrada exitosamente');
       setShowForm(false);
       resetForm();
@@ -173,7 +208,6 @@ export default function PurchasesPage() {
 
   return (
     <div className="p-4 space-y-4 pb-8">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-900">Compras</h1>
         <button
@@ -184,7 +218,6 @@ export default function PurchasesPage() {
         </button>
       </div>
 
-      {/* Purchases list */}
       {loading ? (
         <div className="text-center py-16 text-gray-400">Cargando...</div>
       ) : purchases.length === 0 ? (
@@ -208,7 +241,17 @@ export default function PurchasesPage() {
               >
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-semibold text-gray-900">{formatDate(p.date)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900">{formatDate(p.date)}</p>
+                      {p.imageUrl && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setViewImage(p.imageUrl!); }}
+                          className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full"
+                        >
+                          📷 Factura
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {p.items.length} {p.items.length === 1 ? 'ítem' : 'ítems'}
                       {p.user && ` · ${p.user.name}`}
@@ -216,9 +259,7 @@ export default function PurchasesPage() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-gray-800">{formatCurrency(p.total)}</span>
-                    <span className={`text-gray-400 transition-transform ${expandedId === p.id ? 'rotate-180' : ''}`}>
-                      ▼
-                    </span>
+                    <span className={`text-gray-400 transition-transform ${expandedId === p.id ? 'rotate-180' : ''}`}>▼</span>
                   </div>
                 </div>
               </button>
@@ -238,15 +279,10 @@ export default function PurchasesPage() {
                       </div>
                     ))}
                   </div>
-                  {p.notes && (
-                    <p className="text-xs text-gray-400 mt-3 italic">{p.notes}</p>
-                  )}
+                  {p.notes && <p className="text-xs text-gray-400 mt-3 italic">{p.notes}</p>}
                   <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center">
                     <span className="text-sm font-bold text-gray-800">Total: {formatCurrency(p.total)}</span>
-                    <button
-                      onClick={() => setDeleteConfirm(p.id)}
-                      className="text-xs text-red-400 underline"
-                    >
+                    <button onClick={() => setDeleteConfirm(p.id)} className="text-xs text-red-400 underline">
                       Eliminar
                     </button>
                   </div>
@@ -257,23 +293,82 @@ export default function PurchasesPage() {
         </div>
       )}
 
-      {/* New Purchase Form (slide-up panel) */}
+      {/* New Purchase Form */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
           <div className="bg-white w-full rounded-t-3xl max-h-[95vh] flex flex-col">
-            {/* Form header */}
             <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-lg">Nueva Compra</h2>
-              <button
-                onClick={() => { setShowForm(false); resetForm(); }}
-                className="text-gray-400 text-2xl leading-none"
-              >
-                ×
-              </button>
+              <button onClick={() => { setShowForm(false); resetForm(); }} className="text-gray-400 text-2xl leading-none">×</button>
             </div>
 
-            {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+
+              {/* ── Invoice AI Scanner ── */}
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">📸</span>
+                  <div>
+                    <p className="font-semibold text-orange-800 text-sm">Escanear factura con IA</p>
+                    <p className="text-xs text-orange-600">Toma una foto y la IA extrae los datos automáticamente</p>
+                  </div>
+                </div>
+
+                {!invoicePreview ? (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-orange-300 rounded-xl py-4 text-orange-500 text-sm font-medium flex items-center justify-center gap-2 hover:bg-orange-50"
+                  >
+                    📷 Tomar foto / Subir imagen
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="relative">
+                      <img
+                        src={invoicePreview}
+                        alt="Factura"
+                        className="w-full max-h-48 object-contain rounded-xl bg-gray-100"
+                      />
+                      <button
+                        onClick={() => { setInvoiceFile(null); setInvoicePreview(null); setInvoiceImageUrl(''); }}
+                        className="absolute top-2 right-2 bg-white/80 text-gray-600 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <button
+                      onClick={handleAnalyze}
+                      disabled={analyzing}
+                      className="w-full bg-orange-500 text-white rounded-xl py-3 text-sm font-bold disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {analyzing ? (
+                        <>
+                          <span className="animate-spin">⏳</span> Analizando con IA...
+                        </>
+                      ) : (
+                        <>✨ Analizar con IA</>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full text-xs text-orange-500 underline text-center"
+                    >
+                      Cambiar imagen
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleImageCapture}
+                />
+              </div>
+              {/* ────────────────────── */}
+
               {/* Date */}
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha</label>
@@ -290,28 +385,20 @@ export default function PurchasesPage() {
                 <label className="text-xs font-medium text-gray-600 mb-3 block">Ítems de la compra</label>
                 <div className="space-y-4">
                   {items.map((item, idx) => {
-                    const subtotal =
-                      (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0);
+                    const subtotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0);
                     const itemSuggestions = suggestions[item.key] ?? [];
 
                     return (
-                      <div
-                        key={item.key}
-                        className="border border-gray-100 rounded-2xl p-4 space-y-3 bg-gray-50"
-                      >
+                      <div key={item.key} className="border border-gray-100 rounded-2xl p-4 space-y-3 bg-gray-50">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-semibold text-gray-500">Ítem {idx + 1}</span>
                           {items.length > 1 && (
-                            <button
-                              onClick={() => removeItem(item.key)}
-                              className="text-red-400 text-sm font-medium"
-                            >
+                            <button onClick={() => removeItem(item.key)} className="text-red-400 text-sm font-medium">
                               Quitar
                             </button>
                           )}
                         </div>
 
-                        {/* Name with autocomplete */}
                         <div className="relative">
                           <input
                             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
@@ -329,8 +416,7 @@ export default function PurchasesPage() {
                                 >
                                   <span className="font-medium text-gray-800">{m.name}</span>
                                   <span className="text-gray-400 text-xs ml-2">
-                                    {m.unit}
-                                    {m.referencePrice ? ` · ${formatCurrency(m.referencePrice)}` : ''}
+                                    {m.unit}{m.referencePrice ? ` · ${formatCurrency(m.referencePrice)}` : ''}
                                   </span>
                                 </button>
                               ))}
@@ -338,14 +424,11 @@ export default function PurchasesPage() {
                           )}
                         </div>
 
-                        {/* Quantity + Unit */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="text-xs text-gray-500 mb-1 block">Cantidad *</label>
                             <input
-                              type="number"
-                              min="0"
-                              step="0.1"
+                              type="number" min="0" step="0.1"
                               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
                               placeholder="0"
                               value={item.quantity}
@@ -363,13 +446,10 @@ export default function PurchasesPage() {
                           </div>
                         </div>
 
-                        {/* Unit price + subtotal */}
                         <div>
                           <label className="text-xs text-gray-500 mb-1 block">Precio unitario (COP) *</label>
                           <input
-                            type="number"
-                            min="0"
-                            step="100"
+                            type="number" min="0" step="100"
                             className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-orange-300"
                             placeholder="0"
                             value={item.unitPrice}
@@ -387,7 +467,6 @@ export default function PurchasesPage() {
                     );
                   })}
                 </div>
-
                 <button
                   onClick={addItem}
                   className="mt-3 w-full border border-dashed border-orange-300 text-orange-500 rounded-xl py-3 text-sm font-medium active:bg-orange-50"
@@ -402,14 +481,13 @@ export default function PurchasesPage() {
                 <textarea
                   rows={2}
                   className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-300"
-                  placeholder="Observaciones de la compra..."
+                  placeholder="Proveedor, observaciones..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
             </div>
 
-            {/* Total + Submit */}
             <div className="border-t border-gray-100 px-6 py-4 space-y-3 bg-white">
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-gray-700">Total compra</span>
@@ -427,6 +505,23 @@ export default function PurchasesPage() {
         </div>
       )}
 
+      {/* View invoice image modal */}
+      {viewImage && (
+        <>
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setViewImage(null)}>
+            <div className="relative max-w-lg w-full">
+              <img src={viewImage} alt="Factura" className="w-full rounded-2xl object-contain max-h-[80vh]" />
+              <button
+                onClick={() => setViewImage(null)}
+                className="absolute top-3 right-3 bg-white/90 text-gray-800 rounded-full w-8 h-8 flex items-center justify-center font-bold text-lg"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Delete confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -434,16 +529,10 @@ export default function PurchasesPage() {
             <h3 className="font-bold text-gray-900">¿Eliminar esta compra?</h3>
             <p className="text-sm text-gray-500">Esta acción no se puede deshacer.</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 border border-gray-200 rounded-xl py-3 text-sm font-medium"
-              >
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 border border-gray-200 rounded-xl py-3 text-sm font-medium">
                 Cancelar
               </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold"
-              >
+              <button onClick={() => handleDelete(deleteConfirm)} className="flex-1 bg-red-500 text-white rounded-xl py-3 text-sm font-semibold">
                 Eliminar
               </button>
             </div>

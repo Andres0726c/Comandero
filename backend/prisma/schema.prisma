@@ -101,6 +101,7 @@ model Purchase {
   userId    String
   total     Float          @default(0)
   notes     String?
+  imageUrl  String?
   items     PurchaseItem[]
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt

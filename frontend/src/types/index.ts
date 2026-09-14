@@ -103,6 +103,7 @@ export interface Purchase {
   user?: User;
   total: number;
   notes?: string;
+  imageUrl?: string;
   items: PurchaseItem[];
   createdAt: string;
 }

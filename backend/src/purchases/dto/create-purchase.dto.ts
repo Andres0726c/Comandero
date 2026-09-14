@@ -17,6 +17,10 @@ export class CreatePurchaseDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreatePurchaseItemDto)
