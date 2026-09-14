@@ -42,7 +42,7 @@ export interface OrderItem {
 
 export interface Order {
   id: string;
-  number: number;
+  orderNumber?: number;
   date: string;
   customerId?: string;
   customer?: Customer;
@@ -55,6 +55,15 @@ export interface Order {
   total: number;
   notes?: string;
   deliveryAddress?: string;
+  createdAt: string;
+}
+
+export interface UserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: 'ADMIN' | 'VENDEDOR' | 'COCINA';
+  active: boolean;
   createdAt: string;
 }
 

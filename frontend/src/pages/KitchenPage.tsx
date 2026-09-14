@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { ordersService } from '../services/orders.service';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,13 +8,11 @@ import { Order } from '../types';
 const STATUS_LABEL: Record<string, string> = {
   pendiente: 'Pendiente',
   en_proceso: 'En proceso',
-  listo: 'Listo',
 };
 
 const STATUS_COLOR: Record<string, string> = {
   pendiente: 'bg-yellow-100 border-yellow-300 text-yellow-800',
   en_proceso: 'bg-blue-100 border-blue-300 text-blue-800',
-  listo: 'bg-green-100 border-green-300 text-green-800',
 };
 
 const NEXT_STATUS: Record<string, string> = {
@@ -34,9 +32,30 @@ function timeSince(dateStr: string) {
   return `${Math.floor(diff / 3600)}h`;
 }
 
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    [0, 0.15].forEach((delay) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.4);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.4);
+    });
+  } catch {}
+}
+
 export default function KitchenPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [updating, setUpdating] = useState<Record<string, boolean>>({});
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const seenIds = useRef<Set<string>>(new Set());
+  const isFirst = useRef(true);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -44,11 +63,23 @@ export default function KitchenPage() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const data = await ordersService.getAll({ startDate: today, endDate: today });
-      setOrders(data.filter((o) => ['pendiente', 'en_proceso'].includes(o.status)));
+      const active = data.filter((o) => ['pendiente', 'en_proceso'].includes(o.status));
+
+      if (!isFirst.current && soundEnabled) {
+        const newOnes = active.filter((o) => !seenIds.current.has(o.id));
+        if (newOnes.length > 0) {
+          playBeep();
+          toast('🍖 Nuevo pedido llegó', { style: { background: '#1e293b', color: '#fff' } });
+        }
+      }
+
+      active.forEach((o) => seenIds.current.add(o.id));
+      isFirst.current = false;
+      setOrders(active);
     } catch {
-      // silently retry on next interval
+      // silently retry
     }
-  }, []);
+  }, [soundEnabled]);
 
   useEffect(() => {
     load();
@@ -61,13 +92,15 @@ export default function KitchenPage() {
     if (!next) return;
     setUpdating((u) => ({ ...u, [order.id]: true }));
     try {
-      await ordersService.updateStatus(order.id, next);
-      setOrders((prev) =>
-        next === 'listo'
-          ? prev.filter((o) => o.id !== order.id)
-          : prev.map((o) => o.id === order.id ? { ...o, status: next as Order['status'] } : o)
-      );
-      if (next === 'listo') toast.success(`Pedido #${order.id.slice(-4)} listo`);
+      await ordersService.updateStatus(order.id, next as Order['status']);
+      if (next === 'listo') {
+        setOrders((prev) => prev.filter((o) => o.id !== order.id));
+        toast.success(`Pedido #${order.orderNumber ?? order.id.slice(-4).toUpperCase()} listo`);
+      } else {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === order.id ? { ...o, status: next as Order['status'] } : o))
+        );
+      }
     } catch {
       toast.error('Error al actualizar');
     } finally {
@@ -82,35 +115,38 @@ export default function KitchenPage() {
 
   const pending = orders.filter((o) => o.status === 'pendiente');
   const inProcess = orders.filter((o) => o.status === 'en_proceso');
+  const orderNum = (o: Order) => o.orderNumber ? `#${String(o.orderNumber).padStart(3, '0')}` : `#${o.id.slice(-4).toUpperCase()}`;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🔥</span>
           <div>
             <p className="font-bold text-white text-sm">Cocina — Donde Kuyu Grill</p>
-            <p className="text-gray-400 text-xs">Se actualiza cada 20 segundos</p>
+            <p className="text-gray-400 text-xs">Se actualiza cada 20 seg · {orders.length} pedido{orders.length !== 1 ? 's' : ''} activo{orders.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSoundEnabled((s) => !s)}
+            className={`text-xs border px-3 py-1.5 rounded-lg ${soundEnabled ? 'border-green-600 text-green-400' : 'border-gray-600 text-gray-500'}`}
+            title={soundEnabled ? 'Sonido activado' : 'Sonido desactivado'}
+          >
+            {soundEnabled ? '🔔' : '🔕'}
+          </button>
           <button
             onClick={load}
             className="text-gray-400 hover:text-white text-xs border border-gray-600 px-3 py-1.5 rounded-lg"
           >
             Actualizar
           </button>
-          <button
-            onClick={handleLogout}
-            className="text-gray-400 hover:text-red-400 text-xs"
-          >
+          <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 text-xs">
             Salir
           </button>
         </div>
       </header>
 
-      {/* Content */}
       <div className="flex-1 p-4 overflow-y-auto">
         {orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -120,16 +156,14 @@ export default function KitchenPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* In process first */}
             {[...inProcess, ...pending].map((order) => (
               <div
                 key={order.id}
                 className={`rounded-2xl border-2 p-4 space-y-3 ${STATUS_COLOR[order.status]}`}
               >
-                {/* Order header */}
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-bold text-lg">Pedido #{order.id.slice(-4).toUpperCase()}</p>
+                    <p className="font-bold text-lg">Pedido {orderNum(order)}</p>
                     <p className="text-sm opacity-70">
                       {order.customer?.name ?? 'Sin cliente'} · hace {timeSince(order.createdAt)}
                     </p>
@@ -143,28 +177,21 @@ export default function KitchenPage() {
                   </span>
                 </div>
 
-                {/* Items */}
                 <div className="bg-white/50 rounded-xl p-3 space-y-1.5">
                   {order.items.map((item) => (
                     <div key={item.id} className="flex items-center gap-2">
-                      <span className="font-bold text-lg leading-none w-7 text-center">
-                        {item.quantity}
-                      </span>
-                      <span className="text-sm font-medium flex-1">
-                        {item.product?.name ?? 'Producto'}
-                      </span>
+                      <span className="font-bold text-lg leading-none w-7 text-center">{item.quantity}</span>
+                      <span className="text-sm font-medium flex-1">{item.product?.name ?? 'Producto'}</span>
                     </div>
                   ))}
                 </div>
 
-                {/* Notes */}
                 {order.notes && (
                   <p className="text-xs bg-white/40 rounded-lg px-3 py-2 italic">
                     📝 {order.notes}
                   </p>
                 )}
 
-                {/* Action button */}
                 {NEXT_STATUS[order.status] && (
                   <button
                     onClick={() => advance(order)}

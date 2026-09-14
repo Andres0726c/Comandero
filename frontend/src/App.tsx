@@ -15,6 +15,7 @@ import PurchasesPage from './pages/PurchasesPage';
 import GananciasPage from './pages/GananciasPage';
 import InventarioPage from './pages/InventarioPage';
 import KitchenPage from './pages/KitchenPage';
+import UsersPage from './pages/UsersPage';
 
 function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
@@ -56,6 +57,7 @@ function AppRoutes() {
             <Route path="compras" element={<PurchasesPage />} />
             <Route path="ganancias" element={<GananciasPage />} />
             <Route path="inventario" element={<InventarioPage />} />
+            <Route path="usuarios" element={<UsersPage />} />
           </>
         )}
         <Route path="*" element={<Navigate to="/" replace />} />

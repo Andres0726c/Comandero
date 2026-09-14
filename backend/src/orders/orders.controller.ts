@@ -51,6 +51,13 @@ export class OrdersController {
     return this.ordersService.create(dto, user.id);
   }
 
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'VENDEDOR', 'COCINA')
+  updateStatus(@Param('id') id: string, @Body('status') status: string) {
+    return this.ordersService.update(id, { status } as UpdateOrderDto);
+  }
+
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'VENDEDOR', 'COCINA')

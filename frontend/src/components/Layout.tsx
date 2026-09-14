@@ -24,6 +24,7 @@ const ADMIN_SECONDARY_NAV: NavItem[] = [
   { to: '/productos', icon: '🍖', label: 'Productos' },
   { to: '/materia-prima', icon: '🥬', label: 'Materia Prima' },
   { to: '/reportes', icon: '📊', label: 'Reportes' },
+  { to: '/usuarios', icon: '👤', label: 'Usuarios' },
 ];
 
 const BOTTOM_NAV: NavItem[] = [

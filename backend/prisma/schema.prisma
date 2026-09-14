@@ -46,18 +46,19 @@ model Customer {
 }
 
 model Order {
-  id         String      @id @default(uuid())
-  customer   Customer?   @relation(fields: [customerId], references: [id])
-  customerId String?
-  user       User        @relation(fields: [userId], references: [id])
-  userId     String
-  status     String      @default("PENDIENTE")
-  total      Float       @default(0)
-  notes      String?
-  items      OrderItem[]
-  payments   Payment[]
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id          String      @id @default(uuid())
+  orderNumber Int?
+  customer    Customer?   @relation(fields: [customerId], references: [id])
+  customerId  String?
+  user        User        @relation(fields: [userId], references: [id])
+  userId      String
+  status      String      @default("PENDIENTE")
+  total       Float       @default(0)
+  notes       String?
+  items       OrderItem[]
+  payments    Payment[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model OrderItem {
